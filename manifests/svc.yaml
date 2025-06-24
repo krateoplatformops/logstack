@@ -1,0 +1,16 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auger
+  namespace: demo-system
+spec:
+  selector:
+    app: logstack
+  type: NodePort
+  ports:
+  - name: http
+    port: 8082
+    targetPort: http
+    protocol: TCP
+    nodePort: 30082

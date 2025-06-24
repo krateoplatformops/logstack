@@ -1,0 +1,50 @@
+@startuml "pod-log-manager-flow"
+
+
+skinparam dpi 140
+skinparam defaultFontName "Courier New"
+skinparam defaultFontSize 12
+skinparam titleFontSize 22
+skinparam titleFontColor gray
+
+title "Pod Log Manager"
+
+participant "Kubernetes\n Pods Watcher" as Watcher
+participant PodLogManager
+participant PodLogStreamer
+participant "Kubernetes API" as KubeAPI
+queue "Log Channel\n(chan string)" as LogChan
+participant "LogWriter\n(e.g. EtcdWriter)" as Writer
+queue "Retry Channel\n(chan []string)" as RetryChan
+
+autonumber
+
+== New Pod Detected ==
+
+Watcher -> PodLogManager : OnPodAdd (snowplow-xxx)
+PodLogManager -> PodLogStreamer : NewPodLogStreamer (snowplow-xxx)
+PodLogManager -> PodLogStreamer : Start() //(in goroutine)//
+PodLogStreamer -> KubeAPI : Start pod log stream
+loop Streaming
+    PodLogStreamer -> LogChan : next log line
+end
+
+== Log Writing ==
+
+loop Batching every N log lines or T seconds
+    LogChan -> Writer : WriteBatch (batch)
+    alt on error
+        Writer -> RetryChan : Send batch for retry
+        RetryChan --> LogChan : Requeue failed batch
+    end
+end
+
+== Pod Removed ==
+
+Watcher -> PodLogManager : OnPodDelete (snowplow-xxx)
+PodLogManager -> PodLogStreamer : Cancel context
+PodLogStreamer -> KubeAPI : Stream terminates
+PodLogStreamer -> LogChan : (stream ends gracefully)
+PodLogManager --> PodLogManager : Remove from activeStreamers
+
+@enduml

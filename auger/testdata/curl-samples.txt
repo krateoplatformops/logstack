@@ -1,0 +1,5 @@
+
+ curl -v -G GET \
+    -d 'traceId=zRC9y0EHg' \
+    -d 'limit=5' \
+    http://localhost:30082/logs | jq .

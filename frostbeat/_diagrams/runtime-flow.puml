@@ -1,0 +1,46 @@
+@startuml "frostbeat-runtime-flow"
+
+skinparam dpi 140
+skinparam defaultFontName "Courier New"
+skinparam defaultFontSize 12
+skinparam titleFontSize 22
+skinparam titleFontColor gray
+
+participant main
+participant PodLogManager
+participant PodLogStreamer
+participant KubernetesAPI
+participant LogWriter
+queue logChan
+queue retryChan
+
+autonumber
+
+title "Frostbeat Runtime Flow"
+
+main -> PodLogManager : Start()
+PodLogManager -> KubernetesAPI : Watch pods (namespace=//**demo-system**//;label=//**app=snowplow**//)
+KubernetesAPI --> PodLogManager : pod added (snowplow-abc@demo-system)
+
+PodLogManager -> PodLogStreamer : Start (demo-system, snowplow-abc)
+PodLogStreamer -> KubernetesAPI : GetLogs (Follow=true)
+KubernetesAPI --> PodLogStreamer : Stream (log lines)
+loop log line
+    PodLogStreamer -> logChan : log JSON
+end
+
+loop on batchPeriod
+    main -> LogWriter : WriteBatch (batch)
+    alt on error
+        LogWriter -> retryChan : batch failed
+        retryChan --> logChan : retry batch
+    end
+end
+
+alt on SIGINT or SIGTERM
+  main -> PodLogManager : Shutdown()
+  PodLogManager -> PodLogStreamer : Stop()
+  PodLogStreamer --> KubernetesAPI : Close stream
+end
+
+@enduml
