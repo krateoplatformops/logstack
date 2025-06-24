@@ -28,6 +28,9 @@ jobs:
       packages: write
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Extract version
         run: |
           VERSION=${GITHUB_REF#refs/tags/${{ env.MODULE }}/}
